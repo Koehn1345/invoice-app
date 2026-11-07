@@ -1,0 +1,715 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Invoices</title>
+<meta name="theme-color" content="#2f2c2c">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Invoices">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,500&family=Montserrat:wght@400;500;600;700&family=Mrs+Saint+Delafield&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<style>
+  :root {
+    --ink: #2b2929;
+    --soft: #4a4646;
+    --muted: #8a8580;
+    --paper: #fcfaf8;
+    --band: #e7e5e2;
+    --line: #dcd8d3;
+    --bg: #ecebe8;
+    --serif: "Cormorant Garamond", Georgia, serif;
+    --sans: "Montserrat", Arial, sans-serif;
+    --script: "Mrs Saint Delafield", cursive;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { font-family: var(--sans); color: var(--ink); background: var(--bg); -webkit-text-size-adjust: 100%; }
+  button { font: inherit; cursor: pointer; }
+
+  /* ---------- toolbar ---------- */
+  .toolbar {
+    position: sticky; top: 0; z-index: 10;
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    padding: 10px 16px; padding-top: max(10px, env(safe-area-inset-top));
+    background: var(--ink); color: #fff;
+  }
+  .toolbar .title { font-family: var(--serif); font-size: 24px; letter-spacing: .12em; margin-right: auto; }
+  .btn {
+    border: 0; border-radius: 6px; padding: 9px 14px;
+    background: var(--paper); color: var(--ink); font-weight: 600; font-size: 13px; letter-spacing: .06em; text-transform: uppercase;
+  }
+  .btn.ghost { background: rgba(255,255,255,.12); color: #fff; }
+
+  /* ---------- the invoice sheet (shared by editor + PDF) ---------- */
+  .wrap { padding: 16px; }
+  .sheet {
+    position: relative; max-width: 816px; margin: 0 auto; background: var(--paper);
+    padding: 0 64px 56px; box-shadow: 0 2px 14px rgba(0,0,0,.12);
+    font-size: 13px; letter-spacing: .04em; color: var(--soft);
+    display: flex; flex-direction: column;
+  }
+  .brand { align-self: flex-end; background: var(--band); width: 150px; padding: 26px 10px 22px; text-align: center; }
+  .brand .mark {
+    width: 64px; height: 64px; border-radius: 50%; background: var(--ink); color: #fff; margin: 0 auto 12px;
+    display: flex; align-items: center; justify-content: center;
+    font: italic 500 44px/1 var(--serif); padding-right: 3px;
+  }
+  .brand .bname { font-size: 13px; font-weight: 600; letter-spacing: .18em; color: var(--ink); text-transform: uppercase; line-height: 1.5; }
+  h1.inv { font: 400 64px/1 var(--serif); letter-spacing: .06em; color: var(--ink); margin: 34px 0 52px; }
+  .parties { display: flex; justify-content: space-between; gap: 24px; }
+  .lbl { font-size: 12px; font-weight: 700; letter-spacing: .12em; color: var(--ink); text-transform: uppercase; }
+  .issued .lines { margin-top: 6px; line-height: 1.7; }
+  .meta { display: grid; grid-template-columns: auto auto; gap: 3px 18px; align-content: start; text-align: right; line-height: 1.7; }
+  .meta .k { text-transform: uppercase; letter-spacing: .1em; }
+  .meta .k.b, .meta .v.b { font-weight: 700; color: var(--ink); }
+
+  table.items { width: 100%; border-collapse: collapse; table-layout: fixed; margin-top: 64px; }
+  table.items th {
+    background: var(--band); color: var(--ink); font-size: 12px; font-weight: 700; letter-spacing: .12em;
+    text-transform: uppercase; padding: 10px 8px; text-align: center;
+  }
+  table.items th:first-child { text-align: left; padding-left: 22px; }
+  table.items th:nth-child(4) { text-align: right; padding-right: 20px; }
+  table.items td { padding: 9px 8px; text-align: center; vertical-align: top; }
+  table.items td:first-child { text-align: left; padding-left: 26px; }
+  table.items td:nth-child(4) { text-align: right; padding-right: 20px; }
+  table.items tbody tr:first-child td { padding-top: 22px; }
+  col.c-desc { width: 46%; } col.c-price { width: 19%; } col.c-qty { width: 14%; } col.c-tot { width: 21%; }
+
+  .sums { margin-top: 18px; }
+  .sums .row { display: flex; justify-content: space-between; align-items: center; padding: 6px 20px 6px 22px; }
+  .sums .sub { font-weight: 700; color: var(--ink); letter-spacing: .1em; }
+  .sums .tax { justify-content: flex-end; gap: 40px; font-size: 12px; }
+  .sums .grand { margin-left: auto; width: 36%; min-width: 210px; background: var(--band); font-weight: 700; color: var(--ink); letter-spacing: .1em; padding: 9px 20px; justify-content: flex-end; gap: 36px; }
+  .paid-stamp { text-align: right; margin-top: 10px; padding-right: 20px; font-weight: 700; letter-spacing: .3em; color: #4f7a55; font-size: 12px; }
+  .notes { margin-top: 30px; line-height: 1.7; white-space: pre-wrap; }
+
+  .foot { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; margin-top: auto; padding-top: 56px; }
+  .foot .lines { margin-top: 8px; line-height: 1.7; white-space: pre-wrap; }
+  .foot .block + .block { margin-top: 18px; }
+  .thanks { text-align: center; min-width: 170px; }
+  .sig { font: 52px/1 var(--script); color: var(--ink); margin-top: 6px; letter-spacing: 0; white-space: nowrap; }
+
+  /* ---------- editor inputs ---------- */
+  .sheet input, .sheet textarea {
+    font: inherit; letter-spacing: inherit; color: inherit; background: transparent;
+    border: 0; border-bottom: 1px dashed transparent; outline: none; width: 100%; padding: 2px 0; margin: 0;
+  }
+  #editor input:hover, #editor textarea:hover { border-bottom-color: var(--line); }
+  #editor input:focus, #editor textarea:focus { border-bottom: 1px solid var(--ink); background: rgba(0,0,0,.025); }
+  #editor .meta input { text-align: right; width: 140px; }
+  #editor .meta input[type=date] { width: 150px; }
+  #editor table.items td { padding-top: 4px; padding-bottom: 4px; }
+  #editor table.items tbody tr:first-child td { padding-top: 16px; }
+  #editor table.items input { text-align: inherit; }
+  #editor .rowx { position: relative; }
+  #editor [data-cost] { display: inline-block; padding: 3px 0; }
+  #editor table.items tbody td { border-bottom: 1px solid #efebe6; }
+  .x { position: absolute; right: -26px; top: 6px; border: 0; background: none; color: #b0a9a2; font-size: 18px; padding: 0 4px; }
+  .x:hover { color: #a33; }
+  .add-line { margin: 10px 0 0 22px; background: none; border: 1px dashed var(--line); color: var(--muted); border-radius: 4px; padding: 6px 12px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+  #editor .tax input { width: 46px; text-align: right; }
+  #editor textarea { border: 1px solid var(--line); border-radius: 4px; padding: 8px; min-height: 54px; resize: vertical; }
+  .edit-only { margin-top: 26px; display: flex; gap: 22px; flex-wrap: wrap; align-items: center; }
+  .edit-only label { display: flex; gap: 8px; align-items: center; }
+  .edit-only input[type=checkbox] { width: auto; }
+  .hint { color: var(--muted); font-size: 11px; margin-top: 6px; }
+  .linkish { border: 0; background: none; padding: 0; color: var(--muted); text-decoration: underline; font-size: 11px; letter-spacing: .04em; }
+
+  /* ---------- panels ---------- */
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 20; display: none; }
+  .overlay.open { display: block; }
+  .panel {
+    position: fixed; top: 0; right: 0; bottom: 0; width: min(440px, 100%);
+    background: var(--paper); z-index: 21; overflow-y: auto; padding: 18px 16px 40px;
+    transform: translateX(100%); transition: transform .2s;
+    padding-top: max(18px, env(safe-area-inset-top));
+  }
+  .panel.open { transform: none; }
+  .panel h2 { margin: 0 0 14px; display: flex; justify-content: space-between; align-items: center; font: 500 28px var(--serif); letter-spacing: .06em; }
+  .panel .close { border: 0; background: none; font-size: 26px; color: #666; }
+  .inv-item { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; background: #fff; font-size: 14px; }
+  .inv-item .top { display: flex; justify-content: space-between; font-weight: 600; }
+  .inv-item .sub { color: #777; font-size: 12px; margin: 3px 0 8px; }
+  .inv-item .acts { display: flex; gap: 6px; flex-wrap: wrap; }
+  .inv-item .acts button { border: 1px solid var(--line); background: var(--paper); border-radius: 5px; padding: 5px 10px; font-size: 12px; }
+  .pill { font-size: 10px; padding: 2px 8px; border-radius: 99px; background: #f3e3c9; color: #84571a; margin-left: 6px; vertical-align: middle; letter-spacing: .06em; text-transform: uppercase; }
+  .pill.paid { background: #dbeadc; color: #3c6b42; }
+  .search { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 6px; font-size: 15px; margin-bottom: 12px; }
+  .form label { display: block; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #555; margin: 12px 0 4px; }
+  .form input, .form textarea { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 6px; font: 15px var(--sans); }
+  .form textarea { min-height: 70px; }
+  .empty { color: #777; text-align: center; padding: 30px 0; }
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+    background: #222; color: #fff; padding: 10px 16px; border-radius: 8px; z-index: 30;
+    opacity: 0; transition: opacity .2s; pointer-events: none; max-width: calc(100% - 32px); text-align: center; font-size: 14px;
+  }
+  .toast.show { opacity: 1; }
+  .sync { font: 500 11px var(--sans); letter-spacing: .06em; color: #b9b3ad; margin-left: 8px; vertical-align: middle; }
+  .sync.bad { color: #ffb4a8; }
+  .login { position: fixed; inset: 0; z-index: 50; background: var(--paper); display: none; align-items: center; justify-content: center; padding: 16px; }
+  .login.open { display: flex; }
+  .lbox { width: 100%; max-width: 320px; text-align: center; }
+  .lbox .mark { width: 72px; height: 72px; border-radius: 50%; background: var(--ink); color: #fff; margin: 0 auto 14px; display: flex; align-items: center; justify-content: center; font: italic 500 48px/1 var(--serif); }
+  .lbox h1 { font: 400 34px var(--serif); letter-spacing: .12em; margin: 0 0 26px; }
+  .lbox input { width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 6px; font: 16px var(--sans); margin-bottom: 10px; }
+  .lbox .btn { width: 100%; background: var(--ink); color: #fff; padding: 12px; }
+  .lbox .err { color: #b3261e; font-size: 14px; margin-top: 10px; min-height: 20px; }
+
+  /* static copy for print / PDF: exactly one letter page wide */
+  #render { position: fixed; left: -10000px; top: 0; }
+  .page .sheet { width: 816px; max-width: none; min-height: 1054px; margin: 0; box-shadow: none; }
+
+  /* ---------- phone ---------- */
+  @media (max-width: 640px) {
+    .wrap { padding: 0; }
+    #editor { padding: 0 16px 32px; box-shadow: none; font-size: 13px; }
+    #editor .brand { width: 112px; padding: 16px 6px 14px; }
+    #editor .brand .mark { width: 48px; height: 48px; font-size: 32px; margin-bottom: 8px; }
+    #editor .brand .bname { font-size: 10px; }
+    #editor h1.inv { font-size: 44px; margin: 20px 0 30px; }
+    #editor .parties { flex-direction: column-reverse; gap: 22px; }
+    #editor .meta { justify-content: start; text-align: left; grid-template-columns: 110px 1fr; }
+    #editor .meta input { text-align: left; }
+    #editor table.items { margin-top: 32px; }
+    #editor table.items th { font-size: 10px; letter-spacing: .06em; padding: 9px 3px; }
+    #editor table.items th:first-child, #editor table.items td:first-child { padding-left: 6px; }
+    #editor table.items th:nth-child(4), #editor table.items td:nth-child(4) { padding-right: 22px; }
+    #editor table.items td { padding-left: 3px; padding-right: 3px; }
+    #editor col.c-desc { width: 40%; } #editor col.c-price { width: 21%; } #editor col.c-qty { width: 13%; } #editor col.c-tot { width: 26%; }
+    #editor .x { right: 0; }
+    #editor .sums .row { padding-left: 6px; padding-right: 22px; }
+    #editor .sums .grand { width: 75%; }
+    #editor .foot { flex-direction: column; padding-top: 36px; }
+    #editor .thanks { align-self: flex-end; }
+    .toolbar .title { width: 100%; }
+    .btn { padding: 8px 10px; font-size: 12px; }
+  }
+
+  /* ---------- print ---------- */
+  @page { size: letter; margin: 0; }
+  @media print {
+    body { background: #fff; }
+    .toolbar, .wrap, .overlay, .panel, .toast { display: none !important; }
+    #render { position: static; }
+    .page .sheet { width: 8.5in; min-height: 10.95in; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <div class="title">INVOICES <span id="sync" class="sync"></span></div>
+  <button class="btn ghost" id="bNew">+ New</button>
+  <button class="btn ghost" id="bList">Saved</button>
+  <button class="btn ghost" id="bSettings">My Info</button>
+  <button class="btn" id="bPrint">Print</button>
+  <button class="btn" id="bPdf">PDF</button>
+  <button class="btn" id="bEmail">Email</button>
+</div>
+
+<div class="wrap">
+  <div class="sheet" id="editor">
+    <div class="brand"><div class="mark" id="eMark">J</div><div class="bname" id="eBname"></div></div>
+    <h1 class="inv">INVOICE</h1>
+
+    <div class="parties">
+      <div class="issued" style="flex:1;max-width:340px">
+        <div class="lbl">Issued to:</div>
+        <div class="lines">
+          <input id="fName" list="custList" placeholder="Customer name" autocomplete="off">
+          <input id="fAttn" placeholder="Attention (optional)">
+          <input id="fEmail" type="email" placeholder="Email">
+          <input id="fPhone" type="tel" placeholder="Phone">
+        </div>
+      </div>
+      <div class="meta">
+        <span class="k b">Invoice no:</span><input class="v b" id="fNum" inputmode="numeric">
+        <span class="k">Date:</span><input id="fDate" type="date">
+        <span class="k">Due date:</span><input id="fDue" type="date">
+      </div>
+    </div>
+    <datalist id="custList"></datalist>
+
+    <table class="items">
+      <colgroup><col class="c-desc"><col class="c-price"><col class="c-qty"><col class="c-tot"></colgroup>
+      <thead><tr><th>Description</th><th>Unit price</th><th>Qty</th><th>Total</th></tr></thead>
+      <tbody id="eRows"></tbody>
+    </table>
+    <div><button class="add-line" id="bAdd">+ Add line</button></div>
+
+    <div class="sums">
+      <div class="row sub"><span>SUBTOTAL</span><span id="eSub">$0.00</span></div>
+      <div class="row tax"><span>Tax %</span><input id="fTax" inputmode="decimal" placeholder="0"></div>
+      <div class="row grand"><span>TOTAL</span><span id="eTotal">$0.00</span></div>
+    </div>
+
+    <div class="edit-only">
+      <label style="flex:1 1 100%;flex-direction:column;align-items:stretch;gap:4px"><span class="lbl">Notes</span>
+        <textarea id="fNotes" placeholder="Optional — shows on this invoice"></textarea></label>
+      <label><input type="checkbox" id="fPaid"> <span class="lbl">Paid</span></label>
+    </div>
+
+    <div class="foot">
+      <div>
+        <div class="block" id="ePayBlock"><div class="lbl">Payment details</div><div class="lines" id="ePay"></div></div>
+        <div class="block"><div class="lbl">Contact</div><div class="lines" id="eContact"></div></div>
+        <button class="linkish" style="margin-top:8px" onclick="document.getElementById('bSettings').click()">Edit in My Info</button>
+      </div>
+      <div class="thanks"><div class="lbl">Thank you</div><div class="sig" id="eSig"></div></div>
+    </div>
+  </div>
+</div>
+
+<div id="render"></div>
+<div class="overlay" id="overlay"></div>
+
+<div class="panel" id="pList">
+  <h2>Saved Invoices <button class="close" data-close>&times;</button></h2>
+  <input class="search" id="search" placeholder="Search customer or #">
+  <div id="listBody"></div>
+</div>
+
+<div class="panel" id="pSettings">
+  <h2>My Info <button class="close" data-close>&times;</button></h2>
+  <div class="form">
+    <label>Name / Business</label><input id="sName">
+    <label>Logo letter</label><input id="sLogo" maxlength="2">
+    <label>Phone</label><input id="sPhone" type="tel">
+    <label>Email</label><input id="sEmail" type="email">
+    <label>Address</label><input id="sAddr">
+    <label>Payment details (optional)</label><textarea id="sPay" placeholder="e.g. Make checks payable to Jason Koehn&#10;Venmo @jason-koehn"></textarea>
+    <label>Next invoice #</label><input id="sNext" inputmode="numeric">
+  </div>
+  <p style="color:#666;font-size:13px;margin-top:16px">Saved online and shared by all your devices. <b>Backup</b> downloads a copy; <b>Restore</b> adds invoices from a backup file.</p>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <button class="btn" style="background:var(--ink);color:#fff" id="bBackup">Backup</button>
+    <label class="btn" style="background:var(--band);cursor:pointer">Restore<input type="file" id="fRestore" accept=".json" hidden></label>
+  </div>
+  <button class="linkish" id="bLogout" style="margin-top:22px;font-size:13px">Sign out on this device</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="login" id="login">
+  <form class="lbox" id="lForm">
+    <div class="mark">J</div>
+    <h1>INVOICES</h1>
+    <input id="lPass" type="password" placeholder="Password" autocomplete="current-password" required>
+    <button class="btn" id="lBtn" type="submit">Sign in</button>
+    <div class="err" id="lErr"></div>
+  </form>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const local = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+const DEFAULT_SETTINGS = { name: "Jason Koehn", phone: "", email: "", addr: "", pay: "", logo: "J", next: 1001 };
+let settings = { ...DEFAULT_SETTINGS };
+let invoices = [];
+let customers = {};
+let cur = null;
+
+/* ---------- server sync ---------- */
+let pending = 0;
+function setStatus(txt, bad) { const el = $("sync"); el.textContent = txt; el.classList.toggle("bad", !!bad); }
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    method: opts.method || "GET", credentials: "same-origin", keepalive: opts.method && opts.method !== "GET",
+    headers: opts.body !== undefined ? { "Content-Type": "application/json" } : {},
+    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+  });
+  if (res.status === 401 && path !== "/api/login") { showLogin(); throw new Error("signed out"); }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(data.error || "Request failed"), { status: res.status });
+  return data;
+}
+// Writes go out in order; a failed one is retried so nothing typed gets lost.
+const queue = new Map(); // key -> () => Promise
+let flushing = false;
+function enqueue(key, fn) { queue.set(key, fn); pending = queue.size; setStatus("Saving…"); flush(); }
+async function flush() {
+  if (flushing) return; flushing = true;
+  while (queue.size) {
+    const [key, fn] = queue.entries().next().value;
+    queue.delete(key);
+    try { await fn(); }
+    catch (e) {
+      if (e.message === "signed out") break;
+      if (!queue.has(key)) queue.set(key, fn);
+      setStatus("Not saved — offline?", true);
+      flushing = false; setTimeout(flush, 4000); return;
+    }
+  }
+  flushing = false; pending = queue.size;
+  if (!queue.size) setStatus("Saved");
+}
+const timers = {};
+const debounce = (key, ms, fn) => { clearTimeout(timers[key]); timers[key] = setTimeout(fn, ms); };
+const pushInvoice = (inv) => enqueue("inv:" + inv.id, () => api(`/api/invoices/${encodeURIComponent(inv.id)}`, { method: "PUT", body: inv }));
+const pushSettings = () => enqueue("settings", () => api("/api/settings", { method: "PUT", body: settings }));
+const pushCustomers = () => enqueue("customers", () => api("/api/customers", { method: "PUT", body: customers }));
+window.addEventListener("pagehide", () => flushNow());
+function flushNow() { for (const k in timers) { clearTimeout(timers[k]); } if (cur && dirtyCur) { dirtyCur = false; pushInvoice(cur); } }
+
+const money = (n) => (Number(n) || 0).toLocaleString("en-US", { style: "currency", currency: "USD" });
+const num = (v) => parseFloat(String(v ?? "").replace(/[$,%]/g, "")) || 0;
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const today = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+const fmtDate = (iso) => { if (!iso) return ""; const [y, m, d] = iso.split("-"); return `${m}/${d}/${y}`; };
+const lineCost = (l) => num(l.qty) * num(l.price);
+const subtotal = (inv) => inv.lines.reduce((s, l) => s + lineCost(l), 0);
+const taxAmt = (inv) => Math.round(subtotal(inv) * num(inv.tax)) / 100;
+const total = (inv) => subtotal(inv) + taxAmt(inv);
+const hasContent = (inv) => inv.customer.name || inv.lines.some((l) => l.desc || l.qty || l.price);
+const contactLines = () => [settings.phone, settings.email, settings.addr].filter(Boolean);
+const nextNumber = () => Math.max(settings.next || 1001, ...invoices.map((i) => (parseInt(i.num, 10) || 0) + 1));
+
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove("show"), 2600);
+}
+
+function blankInvoice() {
+  return {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    num: String(nextNumber()), date: today(), due: "", tax: "",
+    customer: { name: "", email: "", phone: "", attn: "" },
+    lines: Array.from({ length: 4 }, () => ({ desc: "", qty: "", price: "" })),
+    notes: "", paid: false,
+  };
+}
+
+/* ---------- saving ---------- */
+let dirtyCur = false;
+function save() {
+  if (!cur) return;
+  const i = invoices.findIndex((x) => x.id === cur.id);
+  if (i === -1) {
+    if (!hasContent(cur)) return;
+    invoices.unshift(cur);
+    const n = parseInt(cur.num, 10);
+    if (!isNaN(n) && n >= settings.next) { settings.next = n + 1; pushSettings(); }
+  } else invoices[i] = cur;
+  cur.updated = Date.now();
+  local.set("inv_current", cur.id);
+  dirtyCur = true; setStatus("Saving…");
+  const inv = cur;
+  debounce("inv", 700, () => { timers.inv = null; dirtyCur = false; pushInvoice(inv); });
+  const c = cur.customer;
+  if (c.name) {
+    const k = c.name.toLowerCase();
+    if (JSON.stringify(customers[k]) !== JSON.stringify(c)) {
+      customers[k] = { ...c };
+      fillCustList();
+      debounce("cust", 1500, () => { timers.cust = null; pushCustomers(); });
+    }
+  }
+}
+
+/* ---------- editor ---------- */
+function renderBiz() {
+  $("eMark").textContent = settings.logo || "";
+  $("eBname").textContent = settings.name;
+  $("eSig").textContent = settings.name;
+  $("ePayBlock").style.display = settings.pay ? "" : "none";
+  $("ePay").textContent = settings.pay;
+  $("eContact").innerHTML = contactLines().map(esc).join("<br>") || `<span style="color:var(--muted)">Add your phone, email and address in My Info</span>`;
+}
+function fillCustList() {
+  $("custList").innerHTML = Object.values(customers).map((c) => `<option value="${esc(c.name)}">`).join("");
+}
+function loadEditor() {
+  $("fNum").value = cur.num; $("fDate").value = cur.date; $("fDue").value = cur.due || "";
+  $("fName").value = cur.customer.name; $("fEmail").value = cur.customer.email;
+  $("fPhone").value = cur.customer.phone; $("fAttn").value = cur.customer.attn;
+  $("fTax").value = cur.tax || ""; $("fNotes").value = cur.notes || ""; $("fPaid").checked = !!cur.paid;
+  renderRows();
+}
+function renderTotals() {
+  $("eSub").textContent = money(subtotal(cur));
+  $("eTotal").textContent = money(total(cur));
+}
+function renderRows() {
+  $("eRows").innerHTML = cur.lines.map((l, i) => `
+    <tr data-i="${i}">
+      <td><input data-k="desc" value="${esc(l.desc)}" placeholder="${i === 0 ? "Description" : ""}"></td>
+      <td><input data-k="price" inputmode="decimal" value="${esc(l.price)}" placeholder="${i === 0 ? "0.00" : ""}"></td>
+      <td><input data-k="qty" inputmode="decimal" value="${esc(l.qty)}" placeholder="${i === 0 ? "1" : ""}"></td>
+      <td class="rowx"><span data-cost>${lineCost(l) ? money(lineCost(l)) : ""}</span><button class="x" title="Remove line" data-del>&times;</button></td>
+    </tr>`).join("");
+  renderTotals();
+}
+$("eRows").addEventListener("input", (e) => {
+  const tr = e.target.closest("tr"); if (!tr) return;
+  const l = cur.lines[tr.dataset.i]; l[e.target.dataset.k] = e.target.value;
+  tr.querySelector("[data-cost]").textContent = lineCost(l) ? money(lineCost(l)) : "";
+  renderTotals(); save();
+});
+$("eRows").addEventListener("click", (e) => {
+  if (!e.target.matches("[data-del]")) return;
+  cur.lines.splice(+e.target.closest("tr").dataset.i, 1);
+  if (!cur.lines.length) cur.lines.push({ desc: "", qty: "", price: "" });
+  renderRows(); save();
+});
+$("bAdd").onclick = () => {
+  cur.lines.push({ desc: "", qty: "", price: "" }); renderRows();
+  $("eRows").lastElementChild.querySelector("input").focus();
+};
+const bind = (id, fn) => $(id).addEventListener("input", () => { fn($(id)); save(); });
+bind("fNum", (el) => (cur.num = el.value));
+bind("fDate", (el) => (cur.date = el.value));
+bind("fDue", (el) => (cur.due = el.value));
+bind("fEmail", (el) => (cur.customer.email = el.value));
+bind("fPhone", (el) => (cur.customer.phone = el.value));
+bind("fAttn", (el) => (cur.customer.attn = el.value));
+bind("fNotes", (el) => (cur.notes = el.value));
+bind("fTax", (el) => { cur.tax = el.value; renderTotals(); });
+$("fPaid").addEventListener("change", (e) => { cur.paid = e.target.checked; save(); });
+bind("fName", (el) => {
+  cur.customer.name = el.value;
+  const known = customers[el.value.toLowerCase()];
+  if (known) {
+    cur.customer = { ...known };
+    $("fEmail").value = known.email; $("fPhone").value = known.phone; $("fAttn").value = known.attn;
+  }
+});
+
+/* ---------- static invoice (print / PDF) ---------- */
+function staticHtml(inv) {
+  const c = inv.customer;
+  const issued = [c.name, c.attn && `Attn: ${c.attn}`, c.email, c.phone].filter(Boolean).map(esc).join("<br>");
+  const lines = inv.lines.filter((l) => l.desc || l.qty || l.price);
+  const priceTxt = (l) => (l.price === "" ? "" : money(num(l.price)));
+  const tax = num(inv.tax);
+  return `<div class="page"><div class="sheet">
+    <div class="brand"><div class="mark">${esc(settings.logo)}</div><div class="bname">${esc(settings.name)}</div></div>
+    <h1 class="inv">INVOICE</h1>
+    <div class="parties">
+      <div class="issued"><div class="lbl">Issued to:</div><div class="lines">${issued}</div></div>
+      <div class="meta">
+        <span class="k b">Invoice no:</span><span class="v b">${esc(inv.num)}</span>
+        <span class="k">Date:</span><span>${fmtDate(inv.date)}</span>
+        ${inv.due ? `<span class="k">Due date:</span><span>${fmtDate(inv.due)}</span>` : ""}
+      </div>
+    </div>
+    <table class="items">
+      <colgroup><col class="c-desc"><col class="c-price"><col class="c-qty"><col class="c-tot"></colgroup>
+      <thead><tr><th>Description</th><th>Unit price</th><th>Qty</th><th>Total</th></tr></thead>
+      <tbody>${lines.map((l) => `<tr><td>${esc(l.desc)}</td><td>${priceTxt(l)}</td><td>${esc(l.qty)}</td><td>${money(lineCost(l))}</td></tr>`).join("")}</tbody>
+    </table>
+    <div class="sums">
+      <div class="row sub"><span>SUBTOTAL</span><span>${money(subtotal(inv))}</span></div>
+      ${tax ? `<div class="row tax"><span>Tax ${tax}%</span><span>${money(taxAmt(inv))}</span></div>` : ""}
+      <div class="row grand"><span>TOTAL</span><span>${money(total(inv))}</span></div>
+      ${inv.paid ? `<div class="paid-stamp">PAID — THANK YOU</div>` : ""}
+    </div>
+    ${inv.notes ? `<div class="notes"><div class="lbl" style="margin-bottom:6px">Notes</div>${esc(inv.notes)}</div>` : ""}
+    <div class="foot">
+      <div>
+        ${settings.pay ? `<div class="block"><div class="lbl">Payment details</div><div class="lines">${esc(settings.pay)}</div></div>` : ""}
+        ${contactLines().length ? `<div class="block"><div class="lbl">Contact</div><div class="lines">${contactLines().map(esc).join("<br>")}</div></div>` : ""}
+      </div>
+      <div class="thanks"><div class="lbl">Thank you</div><div class="sig">${esc(settings.name)}</div></div>
+    </div>
+  </div></div>`;
+}
+const fileName = (inv) => `Invoice-${inv.num}${inv.customer.name ? "-" + inv.customer.name.replace(/[^\w]+/g, "_") : ""}.pdf`;
+
+function pdfWorker(inv) {
+  return html2pdf().set({
+    margin: 0, filename: fileName(inv),
+    image: { type: "jpeg", quality: 0.96 },
+    html2canvas: { scale: 2, useCORS: true, windowWidth: 816, scrollY: 0, scrollX: 0, backgroundColor: "#fcfaf8" },
+    jsPDF: { unit: "in", format: "letter", orientation: "portrait" },
+    pagebreak: { mode: ["css"] },
+  }).from(staticHtml(inv), "string");
+}
+async function pdfBlob(inv) { await document.fonts.ready; return pdfWorker(inv).outputPdf("blob"); }
+
+function needsContent() {
+  if (!hasContent(cur)) { toast("Add a customer or a line item first"); return true; }
+  return false;
+}
+function downloadBlob(blob, name) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
+$("bPrint").onclick = async () => {
+  save(); $("render").innerHTML = staticHtml(cur);
+  await document.fonts.ready;
+  setTimeout(() => window.print(), 50);
+};
+$("bPdf").onclick = async () => {
+  if (needsContent()) return;
+  save(); toast("Making PDF…");
+  try {
+    const blob = await pdfBlob(cur);
+    const file = new File([blob], fileName(cur), { type: "application/pdf" });
+    if (/iPhone|iPad|iPod/.test(navigator.userAgent) && navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ files: [file], title: fileName(cur) }).catch(() => {});
+    } else downloadBlob(blob, fileName(cur));
+  } catch (e) { console.error(e); toast("Couldn't make the PDF"); }
+};
+$("bEmail").onclick = async () => {
+  if (needsContent()) return;
+  save();
+  const inv = cur;
+  const subject = `Invoice #${inv.num} from ${settings.name}`;
+  const body =
+    `Hi ${inv.customer.attn || inv.customer.name || ""},\n\n` +
+    `Attached is invoice #${inv.num} dated ${fmtDate(inv.date)} for ${money(total(inv))}` +
+    (inv.due ? `, due ${fmtDate(inv.due)}` : "") + `.\n\nThank you!\n\n` +
+    [settings.name, settings.phone, settings.email].filter(Boolean).join("\n");
+  toast("Making PDF…");
+  let blob;
+  try { blob = await pdfBlob(inv); } catch (e) { console.error(e); toast("Couldn't make the PDF"); return; }
+  const file = new File([blob], fileName(inv), { type: "application/pdf" });
+  if (navigator.canShare?.({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: subject, text: body }); return; }
+    catch (e) { if (e.name === "AbortError") return; }
+  }
+  downloadBlob(blob, fileName(inv));
+  location.href = `mailto:${encodeURIComponent(inv.customer.email || "")}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  toast("PDF downloaded — attach it to the email");
+};
+
+/* ---------- new / list ---------- */
+$("bNew").onclick = () => {
+  flushNow(); cur = blankInvoice(); loadEditor(); local.set("inv_current", cur.id);
+  window.scrollTo(0, 0); $("fName").focus();
+};
+function openPanel(id) { $("overlay").classList.add("open"); $(id).classList.add("open"); }
+function closePanels() { $("overlay").classList.remove("open"); document.querySelectorAll(".panel").forEach((p) => p.classList.remove("open")); }
+$("overlay").onclick = closePanels;
+document.querySelectorAll("[data-close]").forEach((b) => (b.onclick = closePanels));
+
+$("bList").onclick = () => { flushNow(); renderList(); openPanel("pList"); };
+$("search").oninput = renderList;
+function renderList() {
+  const q = $("search").value.trim().toLowerCase();
+  const list = invoices.filter((i) => !q || i.num.includes(q) || i.customer.name.toLowerCase().includes(q));
+  const owed = invoices.filter((i) => !i.paid).reduce((s, i) => s + total(i), 0);
+  $("listBody").innerHTML =
+    `<div style="font-size:13px;color:#555;margin-bottom:10px">${invoices.length} invoices · Unpaid: <b>${money(owed)}</b></div>` +
+    (list.length ? list.map((i) => `
+    <div class="inv-item" data-id="${i.id}">
+      <div class="top"><span>#${esc(i.num)} ${esc(i.customer.name || "(no name)")}<span class="pill ${i.paid ? "paid" : ""}">${i.paid ? "Paid" : "Unpaid"}</span></span><span>${money(total(i))}</span></div>
+      <div class="sub">${fmtDate(i.date)}${i.due ? " · due " + fmtDate(i.due) : ""}</div>
+      <div class="acts">
+        <button data-a="open">Open</button>
+        <button data-a="paid">${i.paid ? "Mark unpaid" : "Mark paid"}</button>
+        <button data-a="copy">Duplicate</button>
+        <button data-a="del" style="color:#b3261e">Delete</button>
+      </div>
+    </div>`).join("") : `<div class="empty">No invoices yet</div>`);
+}
+$("listBody").onclick = (e) => {
+  const a = e.target.dataset.a; if (!a) return;
+  const id = e.target.closest(".inv-item").dataset.id;
+  const inv = invoices.find((x) => x.id === id);
+  if (a === "open") { cur = inv; loadEditor(); local.set("inv_current", id); closePanels(); }
+  if (a === "paid") { inv.paid = !inv.paid; pushInvoice(inv); if (cur.id === id) $("fPaid").checked = inv.paid; renderList(); }
+  if (a === "copy") {
+    const c = JSON.parse(JSON.stringify(inv));
+    Object.assign(c, { id: blankInvoice().id, num: String(nextNumber()), date: today(), due: "", paid: false });
+    cur = c; save(); loadEditor(); closePanels(); toast(`Copied to #${c.num}`);
+  }
+  if (a === "del" && confirm(`Delete invoice #${inv.num}? This can't be undone.`)) {
+    invoices = invoices.filter((x) => x.id !== id);
+    queue.delete("inv:" + id);
+    enqueue("del:" + id, () => api(`/api/invoices/${encodeURIComponent(id)}`, { method: "DELETE" }));
+    if (cur.id === id) { cur = blankInvoice(); loadEditor(); }
+    renderList();
+  }
+};
+
+/* ---------- settings ---------- */
+const sMap = { sName: "name", sPhone: "phone", sEmail: "email", sAddr: "addr", sPay: "pay", sLogo: "logo", sNext: "next" };
+$("bSettings").onclick = () => {
+  for (const [id, k] of Object.entries(sMap)) $(id).value = settings[k] ?? "";
+  openPanel("pSettings");
+};
+for (const [id, k] of Object.entries(sMap)) {
+  $(id).addEventListener("input", () => {
+    settings[k] = k === "next" ? parseInt($(id).value, 10) || settings.next : $(id).value;
+    renderBiz(); setStatus("Saving…");
+    debounce("settings", 700, () => { timers.settings = null; pushSettings(); });
+  });
+}
+$("bBackup").onclick = () => {
+  const data = { settings, invoices, customers };
+  downloadBlob(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }), `invoices-backup-${today()}.json`);
+};
+$("fRestore").onchange = async (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  e.target.value = "";
+  try {
+    const data = JSON.parse(await f.text());
+    if (!Array.isArray(data.invoices)) throw new Error("bad");
+    if (!confirm(`Add ${data.invoices.length} invoices from this backup? Invoices already here are kept.`)) return;
+    const r = await api("/api/import", { method: "POST", body: data });
+    await loadState(); closePanels(); toast(`Added ${r.added} invoices`);
+  } catch (err) { toast(err.message === "bad" ? "That file isn't an invoice backup" : "Couldn't restore — try again"); }
+};
+$("bLogout").onclick = async () => {
+  if (!confirm("Sign out on this device?")) return;
+  await fetch("/api/logout", { method: "POST" }); location.reload();
+};
+
+/* ---------- sign in ---------- */
+function showLogin() { $("login").classList.add("open"); setTimeout(() => $("lPass").focus(), 50); }
+$("lForm").onsubmit = async (e) => {
+  e.preventDefault();
+  $("lErr").textContent = ""; $("lBtn").disabled = true;
+  try {
+    await api("/api/login", { method: "POST", body: { password: $("lPass").value } });
+    $("login").classList.remove("open"); $("lPass").value = "";
+    await loadState(true);
+    flush();
+  } catch (err) { $("lErr").textContent = err.message; }
+  $("lBtn").disabled = false;
+};
+
+/* ---------- start ---------- */
+async function loadState(first) {
+  const st = await api("/api/state");
+  settings = { ...DEFAULT_SETTINGS, ...(st.settings || {}) };
+  customers = st.customers || {};
+  invoices = st.invoices || [];
+  renderBiz(); fillCustList();
+  // keep whatever is being typed right now; otherwise show the server's copy
+  if (!cur || !dirtyCur) {
+    const want = cur?.id || local.get("inv_current");
+    const found = invoices.find((x) => x.id === want);
+    if (found) cur = found;
+    else if (!cur || invoices.some((x) => x.id === cur.id) || !hasContent(cur)) cur = blankInvoice();
+    loadEditor();
+  }
+  setStatus("Saved");
+  if (first && !st.settings) { $("bSettings").click(); toast("Enter your info once — it goes on every invoice"); }
+}
+// pick up changes made on another device when this one comes back to the front
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && !queue.size && !dirtyCur) loadState().catch(() => {});
+});
+cur = blankInvoice(); loadEditor(); renderBiz();
+loadState(true).catch((e) => { if (e.message !== "signed out") setStatus("Offline", true); });
+if ("serviceWorker" in navigator && location.hostname !== "localhost") navigator.serviceWorker.register("sw.js").catch(() => {});
+</script>
+</body>
+</html>
