@@ -13,7 +13,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,500&family=Montserrat:wght@400;500;600;700&family=Mrs+Saint+Delafield&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   :root {
     --ink: #2b2929;
@@ -165,6 +166,7 @@
 
   /* static copy for print / PDF: exactly one letter page wide */
   #render { position: fixed; left: -10000px; top: 0; }
+  #pdfhost { position: absolute; left: -10000px; top: 0; width: 816px; }
   .page .sheet { width: 816px; max-width: none; min-height: 1054px; margin: 0; box-shadow: none; }
 
   /* ---------- phone ---------- */
@@ -270,6 +272,7 @@
 </div>
 
 <div id="render"></div>
+<div id="pdfhost"></div>
 <div class="overlay" id="overlay"></div>
 
 <div class="panel" id="pList">
@@ -527,16 +530,28 @@ function staticHtml(inv) {
 }
 const fileName = (inv) => `Invoice-${inv.num}${inv.customer.name ? "-" + inv.customer.name.replace(/[^\w]+/g, "_") : ""}.pdf`;
 
-function pdfWorker(inv) {
-  return html2pdf().set({
-    margin: 0, filename: fileName(inv),
-    image: { type: "jpeg", quality: 0.96 },
-    html2canvas: { scale: 2, useCORS: true, windowWidth: 816, scrollY: 0, scrollX: 0, backgroundColor: "#fcfaf8" },
-    jsPDF: { unit: "in", format: "letter", orientation: "portrait" },
-    pagebreak: { mode: ["css"] },
-  }).from(staticHtml(inv), "string");
+// Draw the invoice at a fixed 8.5in (816px) width no matter how wide the screen is,
+// then place it on a letter page. (html2pdf centered the page in the window, which
+// pushed it sideways on phones and wide screens.)
+async function pdfBlob(inv) {
+  await document.fonts.ready;
+  const host = $("pdfhost");
+  host.innerHTML = staticHtml(inv);
+  const el = host.querySelector(".sheet");
+  try {
+    const canvas = await html2canvas(el, {
+      scale: 2, useCORS: true, backgroundColor: "#fcfaf8", logging: false,
+      width: 816, height: el.offsetHeight, windowWidth: 816, scrollX: 0, scrollY: 0,
+    });
+    const pdf = new jspdf.jsPDF({ unit: "pt", format: "letter", orientation: "portrait" });
+    const pageW = 612, pageH = 792;
+    const imgH = (canvas.height * pageW) / canvas.width;
+    const img = canvas.toDataURL("image/jpeg", 0.95);
+    pdf.addImage(img, "JPEG", 0, 0, pageW, imgH);
+    for (let y = pageH; y < imgH - 2; y += pageH) { pdf.addPage(); pdf.addImage(img, "JPEG", 0, -y, pageW, imgH); }
+    return pdf.output("blob");
+  } finally { host.innerHTML = ""; }
 }
-async function pdfBlob(inv) { await document.fonts.ready; return pdfWorker(inv).outputPdf("blob"); }
 
 function needsContent() {
   if (!hasContent(cur)) { toast("Add a customer or a line item first"); return true; }
