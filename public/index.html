@@ -247,7 +247,8 @@
   @page { size: letter; margin: 0; }
   @media print {
     body { background: #fff; }
-    .toolbar, .wrap, main.view, .overlay, .panel, .toast, .login { display: none !important; }
+    .toolbar, .wrap, main.view, .overlay, .panel, .toast, .login,
+    body[data-view] #vHome, body[data-view] #vCustomers, body[data-view] #vEditor { display: none !important; }
     #render { position: static; }
     .page .sheet { width: 8.5in; min-height: 10.95in; }
     * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }

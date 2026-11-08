@@ -1,5 +1,5 @@
 // Network first so updates show up right away; the cache is only a fallback when offline.
-const CACHE = "invoices-v6";
+const CACHE = "invoices-v7";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png",
   "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js", "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"];
 
