@@ -99,22 +99,23 @@
     font-size: 13px; letter-spacing: .04em; color: var(--soft);
     display: flex; flex-direction: column;
   }
-  .brand { align-self: flex-end; background: var(--band); width: 150px; padding: 26px 10px 22px; text-align: center; }
+  .head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; }
+  .brand { flex: none; background: var(--band); width: 150px; padding: 26px 10px 22px; text-align: center; }
   .brand .mark {
     width: 64px; height: 64px; border-radius: 50%; background: var(--ink); color: #fff; margin: 0 auto 12px;
     display: flex; align-items: center; justify-content: center;
     font: italic 500 44px/1 var(--serif); padding-right: 3px;
   }
   .brand .bname { font-size: 13px; font-weight: 600; letter-spacing: .18em; color: var(--ink); text-transform: uppercase; line-height: 1.5; }
-  h1.inv { font: 400 64px/1 var(--serif); letter-spacing: .06em; color: var(--ink); margin: 34px 0 52px; }
-  .parties { display: flex; justify-content: space-between; gap: 24px; }
+  h1.inv { font: 400 64px/1 var(--serif); letter-spacing: .06em; color: var(--ink); margin: 0 0 4px; }
+  .parties { margin-top: 30px; display: flex; justify-content: space-between; gap: 24px; }
   .lbl { font-size: 12px; font-weight: 700; letter-spacing: .12em; color: var(--ink); text-transform: uppercase; }
   .issued .lines { margin-top: 6px; line-height: 1.7; }
   .meta { display: grid; grid-template-columns: auto auto; gap: 3px 18px; align-content: start; text-align: right; line-height: 1.7; }
   .meta .k { text-transform: uppercase; letter-spacing: .1em; }
   .meta .k.b, .meta .v.b { font-weight: 700; color: var(--ink); }
 
-  table.items { width: 100%; border-collapse: collapse; table-layout: fixed; margin-top: 64px; }
+  table.items { width: 100%; border-collapse: collapse; table-layout: fixed; margin-top: 44px; }
   table.items th {
     background: var(--band); color: var(--ink); font-size: 12px; font-weight: 700; letter-spacing: .12em;
     text-transform: uppercase; padding: 10px 8px; text-align: center;
@@ -220,11 +221,12 @@
     #editor .brand { width: 112px; padding: 16px 6px 14px; }
     #editor .brand .mark { width: 48px; height: 48px; font-size: 32px; margin-bottom: 8px; }
     #editor .brand .bname { font-size: 10px; }
-    #editor h1.inv { font-size: 44px; margin: 20px 0 30px; }
+    #editor h1.inv { font-size: 34px; }
+    #editor .parties { margin-top: 22px; }
     #editor .parties { flex-direction: column-reverse; gap: 22px; }
     #editor .meta { justify-content: start; text-align: left; grid-template-columns: 110px 1fr; }
     #editor .meta input { text-align: left; }
-    #editor table.items { margin-top: 32px; }
+    #editor table.items { margin-top: 26px; }
     #editor table.items th { font-size: 10px; letter-spacing: .06em; padding: 9px 3px; }
     #editor table.items th:first-child, #editor table.items td:first-child { padding-left: 6px; }
     #editor table.items th:nth-child(4), #editor table.items td:nth-child(4) { padding-right: 22px; }
@@ -288,8 +290,10 @@
 
 <div class="wrap view" id="vEditor">
   <div class="sheet" id="editor">
-    <div class="brand"><div class="mark" id="eMark">J</div><div class="bname" id="eBname"></div></div>
-    <h1 class="inv">INVOICE</h1>
+    <div class="head">
+      <h1 class="inv">INVOICE</h1>
+      <div class="brand"><div class="mark" id="eMark">J</div><div class="bname" id="eBname"></div></div>
+    </div>
 
     <div class="parties">
       <div class="issued" style="flex:1;max-width:340px">
@@ -611,8 +615,10 @@ function staticHtml(inv) {
   const priceTxt = (l) => (l.price === "" ? "" : money(num(l.price)));
   const tax = num(inv.tax);
   return `<div class="page"><div class="sheet">
-    <div class="brand"><div class="mark">${esc(settings.logo)}</div><div class="bname">${esc(settings.name)}</div></div>
-    <h1 class="inv">INVOICE</h1>
+    <div class="head">
+      <h1 class="inv">INVOICE</h1>
+      <div class="brand"><div class="mark">${esc(settings.logo)}</div><div class="bname">${esc(settings.name)}</div></div>
+    </div>
     <div class="parties">
       <div class="issued"><div class="lbl">Issued to:</div><div class="lines">${issued}</div></div>
       <div class="meta">
